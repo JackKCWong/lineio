@@ -14,15 +14,16 @@ func TestSmokeTailN(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	doc := []byte("hello\nworld\nbye\n")
+	buf := make([]byte, 11)
 	rd := bytes.NewReader(doc)
 
-	tailer := bulkio.NewTailer(rd, 11)
+	tailer := bulkio.NewTailer(rd, buf)
 	// ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	// defer cancel()
 
 	var lines []bulkio.Line
 	var count int
-	err := tailer.TailN(context.Background(), 100*time.Millisecond, func(batch []bulkio.Line) error {
+	err := tailer.Tail(context.Background(), 100*time.Millisecond, func(batch []bulkio.Line) error {
 		for i := range batch {
 			lines = append(lines, batch[i].Copy())
 		}

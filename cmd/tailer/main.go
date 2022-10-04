@@ -51,7 +51,8 @@ func main() {
 		panic(err)
 	}
 
-	tailer := bulkio.NewTailer(fd, *fBufSize*1024)
+	buf := make([]byte, *fBufSize*1024)
+	tailer := bulkio.NewTailer(fd, buf)
 	tailer.StartingByte = int64(offset)
 	tailer.StartingLine = lineno
 
@@ -72,7 +73,7 @@ func main() {
 	}()
 
 	var lineCount int
-	err = tailer.TailN(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []bulkio.Line) error {
+	err = tailer.Tail(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []bulkio.Line) error {
 		lineCount++
 		timeout.Reset(tm * time.Second)
 		if *fVerbose {

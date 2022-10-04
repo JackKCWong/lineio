@@ -1,7 +1,6 @@
 package bulkio
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"io"
@@ -10,7 +9,7 @@ import (
 
 type Tailer struct {
 	fd           io.ReadSeeker
-	bufsize      int
+	buf          []byte
 	StartingByte int64
 	StartingLine int
 }
@@ -34,79 +33,23 @@ func (l Line) Copy() Line {
 	}
 }
 
-func NewTailer(fd io.ReadSeeker, bufsize int) *Tailer {
+func NewTailer(fd io.ReadSeeker, buf []byte) *Tailer {
 	return &Tailer{
 		fd:           fd,
-		bufsize:      bufsize,
+		buf:          buf,
+		StartingByte: 0,
 		StartingLine: 1,
 	}
 }
 
 var ErrEndOfTail error = errors.New("end of tail")
 
-func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func(Line) error) error {
+func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([]Line) error) error {
 	_, err := t.fd.Seek(t.StartingByte, io.SeekStart)
 	if err != nil {
 		return err
 	}
 
-	rd := bufio.NewReaderSize(t.fd, t.bufsize)
-	offset := t.StartingByte
-	lineno := t.StartingLine
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// reset EOF
-			_, err := t.fd.Seek(0, io.SeekCurrent)
-			if err != nil {
-				return err
-			}
-
-			line, err := rd.ReadBytes('\n')
-			if err != nil {
-				if err == io.EOF {
-					_, err := t.fd.Seek(offset, io.SeekStart) // unread last partial line
-					if err != nil {
-						return err
-					}
-
-					time.Sleep(backoff)
-					continue
-				} else {
-					return err
-				}
-			}
-
-			l := Line{
-				No:         lineno,
-				LineEnding: offset,
-				Raw:        line, // keep \n
-			}
-
-			if err := consume(l); err != nil {
-				if errors.Is(err, ErrEndOfTail) {
-					return nil
-				} else {
-					return err
-				}
-			}
-
-			offset += int64(len(line) + 1)
-			lineno += 1
-		}
-	}
-}
-
-func (t *Tailer) TailN(ctx context.Context, backoff time.Duration, consume func([]Line) error) error {
-	_, err := t.fd.Seek(t.StartingByte, io.SeekStart)
-	if err != nil {
-		return err
-	}
-
-	buf := make([]byte, t.bufsize)
 	offset := t.StartingByte
 	lineno := t.StartingLine - 1
 
@@ -120,17 +63,17 @@ func (t *Tailer) TailN(ctx context.Context, backoff time.Duration, consume func(
 				return err
 			}
 
-			n, err := io.ReadFull(t.fd, buf)
+			n, err := io.ReadFull(t.fd, t.buf)
 			if n > 0 {
 				var lines []Line
 				var lastLineEnding int = -1 // track lines within buf
 				var lastLineNo int = 1
 				for i := 0; i < n; i++ {
-					if buf[i] == '\n' {
+					if t.buf[i] == '\n' {
 						line := Line{
 							No:         lineno + lastLineNo,
 							LineEnding: offset + int64(i),
-							Raw:        buf[lastLineEnding+1 : i], // remove \n
+							Raw:        t.buf[lastLineEnding+1 : i], // remove \n
 						}
 						lines = append(lines, line)
 						lastLineEnding = i
