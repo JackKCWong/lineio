@@ -19,6 +19,7 @@ func main() {
 	fStart := flag.String("start", "1,0", "lineno,offset")
 	fBufSize := flag.Int("buf", 4, "buffer size in KBs")
 	fBackoff := flag.Int("backoff", 500, "backoff time in ms")
+	fTimeout := flag.Int("timeout", 1, "EOF timeout in s")
 	fVerbose := flag.Bool("v", false, "verbose")
 
 	flag.Parse()
@@ -63,7 +64,8 @@ func main() {
 		cancel()
 	}()
 
-	timeout := time.NewTimer(1 * time.Second)
+	tm := time.Duration(*fTimeout)
+	timeout := time.NewTimer(tm * time.Second)
 	go func() {
 		<-timeout.C
 		cancel()
@@ -72,7 +74,7 @@ func main() {
 	var lineCount int
 	err = tailer.TailN(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []bulkio.Line) error {
 		lineCount++
-		timeout.Reset(1 * time.Second)
+		timeout.Reset(tm * time.Second)
 		if *fVerbose {
 			for i := range lines {
 				fmt.Printf("%d:%d\t\t%s\n", lines[i].No, lines[i].LineEnding, lines[i].Raw)
