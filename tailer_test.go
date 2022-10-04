@@ -16,30 +16,39 @@ func TestSmokeTailN(t *testing.T) {
 	doc := []byte("hello\nworld\nbye\n")
 	rd := bytes.NewReader(doc)
 
-	tailer := bulkio.NewTailer(rd, 1024)
-	var lineCount int
+	tailer := bulkio.NewTailer(rd, 11)
+	// ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	// defer cancel()
 
-	err := tailer.TailN(context.Background(), 100*time.Millisecond, func(lines []bulkio.Line) error {
-		lineCount = len(lines)
-		g.Expect(lineCount).Should(Equal(3))
+	var lines []bulkio.Line
+	var count int
+	err := tailer.TailN(context.Background(), 100*time.Millisecond, func(batch []bulkio.Line) error {
+		for i := range batch {
+			lines = append(lines, batch[i].Copy())
+		}
 
-		g.Expect(lines[0].No).Should(Equal(1))
-		g.Expect(lines[0].Raw).Should(BeEquivalentTo("hello"))
-		g.Expect(lines[0].Offset).Should(BeEquivalentTo(5))
-		g.Expect(doc[0:lines[0].Offset]).Should(BeEquivalentTo("hello"))
+		count++
+		if count == 2 {
+			return bulkio.ErrEndOfTail
+		}
 
-		g.Expect(lines[1].No).Should(Equal(2))
-		g.Expect(lines[1].Raw).Should(BeEquivalentTo("world"))
-		g.Expect(lines[1].Offset).Should(BeEquivalentTo(11))
-		g.Expect(doc[lines[0].Offset+1 : lines[1].Offset]).Should(BeEquivalentTo("world"))
-
-		g.Expect(lines[2].No).Should(Equal(3))
-		g.Expect(lines[2].Raw).Should(BeEquivalentTo("bye"))
-		g.Expect(lines[2].Offset).Should(BeEquivalentTo(15))
-		g.Expect(doc[lines[1].Offset+1 : lines[2].Offset]).Should(BeEquivalentTo("bye"))
-		return bulkio.ErrEndOfTail
+		return nil
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(lineCount).Should(Equal(3)) // make sure lines are read.
+	g.Expect(len(lines)).Should(Equal(3))
+	g.Expect(lines[0].No).Should(Equal(1))
+	g.Expect(lines[0].Raw).Should(BeEquivalentTo("hello"))
+	g.Expect(lines[0].LineEnding).Should(BeEquivalentTo(5))
+	g.Expect(doc[0:lines[0].LineEnding]).Should(BeEquivalentTo("hello"))
+
+	g.Expect(lines[1].No).Should(Equal(2))
+	g.Expect(lines[1].Raw).Should(BeEquivalentTo("world"))
+	g.Expect(lines[1].LineEnding).Should(BeEquivalentTo(11))
+	g.Expect(doc[lines[0].LineEnding+1 : lines[1].LineEnding]).Should(BeEquivalentTo("world"))
+
+	g.Expect(lines[2].No).Should(Equal(3))
+	g.Expect(lines[2].Raw).Should(BeEquivalentTo("bye"))
+	g.Expect(lines[2].LineEnding).Should(BeEquivalentTo(15))
+	g.Expect(doc[lines[1].LineEnding+1 : lines[2].LineEnding]).Should(BeEquivalentTo("bye"))
 }

@@ -64,7 +64,7 @@ func main() {
 
 	err = tailer.TailN(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []bulkio.Line) error {
 		for i := range lines {
-			fmt.Printf("%d:%d\t\t%s", lines[i].No, lines[i].Offset, lines[i].Raw)
+			fmt.Printf("%d:%d\t\t%s\n", lines[i].No, lines[i].LineEnding, lines[i].Raw)
 		}
 
 		fmt.Println("#########################")

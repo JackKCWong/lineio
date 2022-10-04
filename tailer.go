@@ -18,10 +18,20 @@ type Tailer struct {
 type Line struct {
 	// No is the number of current line, starting from 1
 	No int
-	// Offset is the ending offset of current line in the File, in number of bytes, staring from 0, pointing at current \n
-	Offset int64
+	// LineEnding is the ending offset of current line in the File, in number of bytes, staring from 0, pointing at current \n
+	LineEnding int64
 	// Raw holds the line content, excluding \n
 	Raw []byte
+}
+
+func (l Line) Copy() Line {
+	raw := make([]byte, len(l.Raw))
+	copy(raw, l.Raw)
+	return Line{
+		No:         l.No,
+		LineEnding: l.LineEnding,
+		Raw:        raw,
+	}
 }
 
 func NewTailer(fd io.ReadSeeker, bufsize int) *Tailer {
@@ -71,9 +81,9 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func(L
 			}
 
 			l := Line{
-				No:     lineno,
-				Offset: offset,
-				Raw:    line, // keep \n
+				No:         lineno,
+				LineEnding: offset,
+				Raw:        line, // keep \n
 			}
 
 			if err := consume(l); err != nil {
@@ -113,27 +123,29 @@ func (t *Tailer) TailN(ctx context.Context, backoff time.Duration, consume func(
 			n, err := io.ReadFull(t.fd, buf)
 			if n > 0 {
 				var lines []Line
-				var lastPosOffset int // track lines within buf
+				var lastLineEnding int = -1 // track lines within buf
 				var lastLineNo int = 1
 				for i := 0; i < n; i++ {
 					if buf[i] == '\n' {
 						line := Line{
-							No:     lineno + lastLineNo,
-							Offset: offset + int64(i),
-							Raw:    buf[lastPosOffset:i], // remove \n
+							No:         lineno + lastLineNo,
+							LineEnding: offset + int64(i),
+							Raw:        buf[lastLineEnding+1 : i], // remove \n
 						}
 						lines = append(lines, line)
-						lastPosOffset = i + 1 // skip \n
+						lastLineEnding = i
 						lastLineNo++
 					}
 				}
 
-				if len(lines) == 0 {
-					_, err := t.fd.Seek(offset, io.SeekStart) // unread last partial line
-					if err != nil {
-						return err
-					}
+				offset += int64(lastLineEnding) + 1 // last line start
+				lineno += len(lines)
+				_, err := t.fd.Seek(offset, io.SeekStart) // unread last partial line
+				if err != nil {
+					return err
+				}
 
+				if len(lines) == 0 {
 					time.Sleep(backoff)
 					continue
 				}
@@ -145,8 +157,6 @@ func (t *Tailer) TailN(ctx context.Context, backoff time.Duration, consume func(
 						return err
 					}
 				}
-				offset += int64(lastPosOffset) // last line start
-				lineno += len(lines)
 			} else {
 				if err != io.EOF {
 					return err
