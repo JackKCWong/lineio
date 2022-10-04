@@ -2,11 +2,9 @@ package bulkio
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"io"
-	"text/scanner"
 	"time"
 )
 
@@ -20,9 +18,9 @@ type Tailer struct {
 type Line struct {
 	// No is the number of current line, starting from 1
 	No int
-	// Offset is the ending offset of current line, in number of bytes, staring from 0
+	// Offset is the ending offset of current line in the File, in number of bytes, staring from 0, pointing at current \n
 	Offset int64
-	// Raw holds the line content, including \n
+	// Raw holds the line content, excluding \n
 	Raw []byte
 }
 
@@ -114,22 +112,19 @@ func (t *Tailer) TailN(ctx context.Context, backoff time.Duration, consume func(
 
 			n, err := io.ReadFull(t.fd, buf)
 			if n > 0 {
-				var s scanner.Scanner
-				s.Init(bytes.NewReader(buf[0:n]))
-				s.Whitespace ^= 1<<'\t' | 1<<'\n' // don't skip tabs and new lines
-
 				var lines []Line
 				var lastPosOffset int // track lines within buf
-				for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
-					if tok == '\n' {
-						pos := s.Pos()
+				var lastLineNo int = 1
+				for i := 0; i < n; i++ {
+					if buf[i] == '\n' {
 						line := Line{
-							No:     lineno + (pos.Line - 1), // \n is counted as next line start
-							Offset: offset + int64(pos.Offset),
-							Raw:    buf[lastPosOffset:pos.Offset],
+							No:     lineno + lastLineNo,
+							Offset: offset + int64(i),
+							Raw:    buf[lastPosOffset:i], // remove \n
 						}
 						lines = append(lines, line)
-						lastPosOffset = pos.Offset // Next line
+						lastPosOffset = i + 1 // skip \n
+						lastLineNo++
 					}
 				}
 
