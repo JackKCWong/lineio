@@ -52,19 +52,20 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 
 	offsetInFile := t.StartingByte
 	lineno := t.StartingLine - 1
-	offsetInBuf := 0
+	dataStart := 0
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			n, err := t.fd.Read(t.buf[offsetInBuf:])
+			n, err := t.fd.Read(t.buf[dataStart:])
 			if n > 0 {
+				dataEnd := dataStart + n
 				var lines []Line
 				var lastLineEnding int = -1 // track lines within buf
 				var lastLineNo int = 1
-				for i := 0; i < offsetInBuf+n; i++ {
+				for i := 0; i < dataEnd; i++ {
 					if t.buf[i] == '\n' {
 						line := Line{
 							No:         lineno + lastLineNo,
@@ -89,11 +90,11 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					}
 				}
 
-				if lastLineEnding < len(t.buf)-1 {
-					n := copy(t.buf, t.buf[lastLineEnding+1:])
-					offsetInBuf = n
+				if lastLineEnding < dataEnd-1 {
+					n := copy(t.buf, t.buf[lastLineEnding+1:dataEnd])
+					dataStart = n
 				} else {
-					offsetInBuf = 0
+					dataStart = 0
 				}
 			}
 

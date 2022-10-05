@@ -1,8 +1,11 @@
 package bulkio_test
 
 import (
-	"bytes"
 	"context"
+	"io/ioutil"
+	"log"
+	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,19 +13,46 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestSmokeTailN(t *testing.T) {
+func TestSmokeTail(t *testing.T) {
 	g := NewGomegaWithT(t)
+
+	fd, err := ioutil.TempFile(os.TempDir(), "TestSmokeTail")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	log.Printf("%s created", fd.Name())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		wg.Done()
+		fd.WriteString("hi\n")
+		fd.Sync()
+		log.Printf("writing...")
+		time.Sleep(100*time.Millisecond)
+		fd.WriteString("world\n")
+		fd.Sync()
+		log.Printf("writing...")
+		time.Sleep(200*time.Millisecond)
+		fd.WriteString("bye\n")
+		fd.Sync()
+		log.Printf("writing...")
+		fd.Close()
+	}()
 
 	doc := []byte("hi\nworld\nbye\n")
 	buf := make([]byte, 6)
-	rd := bytes.NewReader(doc)
+	rd, err := os.Open(fd.Name())
+	g.Expect(err).ShouldNot(HaveOccurred())
+	defer rd.Close()
 
 	tailer := bulkio.NewTailer(rd, buf)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	wg.Wait()
 
 	var lines []bulkio.Line
-	err := tailer.Tail(ctx, 100*time.Millisecond, func(batch []bulkio.Line) error {
+	err = tailer.Tail(ctx, 50*time.Millisecond, func(batch []bulkio.Line) error {
+		log.Printf("get lines: %+v", batch)
 		for i := range batch {
 			lines = append(lines, batch[i].Copy())
 		}
