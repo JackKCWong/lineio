@@ -43,6 +43,7 @@ func NewTailer(fd io.ReadSeeker, buf []byte) *Tailer {
 }
 
 var ErrEndOfTail error = errors.New("end of tail")
+var ErrLineTooLong error = errors.New("a line doesnot fit in the buffer")
 
 func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([]Line) error) error {
 	_, err := t.fd.Seek(t.StartingByte, io.SeekStart)
@@ -70,7 +71,7 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 						line := Line{
 							No:         lineno + lastLineNo,
 							LineEnding: fileDataStart + int64(i),
-							Raw:        t.buf[lastLineEnding+1 : i], // remove \n
+							Raw:        t.buf[lastLineEnding+1 : i], // exclude \n
 						}
 						lines = append(lines, line)
 						lastLineEnding = i
@@ -78,8 +79,6 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					}
 				}
 
-				fileDataStart += int64(lastLineEnding) + 1 // last line start
-				lineno += len(lines)
 				if len(lines) > 0 {
 					if err := consume(lines); err != nil {
 						if errors.Is(err, ErrEndOfTail) {
@@ -88,8 +87,15 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 							return err
 						}
 					}
+				} else {
+					// no \n found
+					if bufDataLen == len(t.buf) {
+						return ErrLineTooLong
+					}
 				}
 
+				fileDataStart += int64(lastLineEnding) + 1
+				lineno += len(lines)
 				if lastLineEnding < bufDataLen-1 {
 					if lastLineEnding > -1 {
 						copy(t.buf, t.buf[lastLineEnding+1:bufDataLen])
