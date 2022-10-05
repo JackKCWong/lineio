@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/JackKCWong/go-bulkio"
+	"github.com/JackKCWong/lineio"
 	"github.com/pkg/profile"
 )
 
@@ -52,7 +52,7 @@ func main() {
 	}
 
 	buf := make([]byte, *fBufSize*1024)
-	tailer := bulkio.NewTailer(fd, buf)
+	tailer := lineio.NewTailer(fd, buf)
 	tailer.StartingByte = int64(offset)
 	tailer.StartingLine = lineno
 
@@ -73,7 +73,7 @@ func main() {
 	}()
 
 	var lineCount int
-	err = tailer.Tail(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []bulkio.Line) error {
+	err = tailer.Tail(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []lineio.Line) error {
 		lineCount++
 		timeout.Reset(tm * time.Second)
 		if *fVerbose {

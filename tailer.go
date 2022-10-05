@@ -1,4 +1,4 @@
-package bulkio
+package lineio 
 
 import (
 	"context"

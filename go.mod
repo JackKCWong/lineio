@@ -1,4 +1,4 @@
-module github.com/JackKCWong/go-bulkio
+module github.com/JackKCWong/lineio
 
 go 1.18
 

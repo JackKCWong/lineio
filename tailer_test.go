@@ -1,4 +1,4 @@
-package bulkio_test
+package lineio_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/JackKCWong/go-bulkio"
+	"github.com/JackKCWong/lineio"
 	. "github.com/onsi/gomega"
 )
 
@@ -47,20 +47,20 @@ func TestSmokeTail(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	defer rd.Close()
 
-	tailer := bulkio.NewTailer(rd, buf)
+	tailer := lineio.NewTailer(rd, buf)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	wg.Wait()
 
-	var lines []bulkio.Line
-	err = tailer.Tail(ctx, 50*time.Millisecond, func(batch []bulkio.Line) error {
+	var lines []lineio.Line
+	err = tailer.Tail(ctx, 50*time.Millisecond, func(batch []lineio.Line) error {
 		log.Printf("get lines: %+v", batch)
 		for i := range batch {
 			lines = append(lines, batch[i].Copy())
 		}
 
 		if len(lines) >= 3 {
-			return bulkio.ErrEndOfTail
+			return lineio.ErrEndOfTail
 		}
 
 		return nil
