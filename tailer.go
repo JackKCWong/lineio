@@ -1,4 +1,4 @@
-package lineio 
+package lineio
 
 import (
 	"context"
@@ -52,20 +52,20 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 
 	fileDataStart := t.StartingByte
 	lineno := t.StartingLine - 1
-	bufDataStart := 0
+	bufDataWriteIdx := 0
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			n, err := t.fd.Read(t.buf[bufDataStart:])
+			n, err := t.fd.Read(t.buf[bufDataWriteIdx:])
 			if n > 0 {
-				bufDataEnd := bufDataStart + n
+				bufDataLen := bufDataWriteIdx + n
 				var lines []Line
 				var lastLineEnding int = -1 // track lines within buf
 				var lastLineNo int = 1
-				for i := 0; i < bufDataEnd; i++ {
+				for i := 0; i < bufDataLen; i++ {
 					if t.buf[i] == '\n' {
 						line := Line{
 							No:         lineno + lastLineNo,
@@ -90,11 +90,13 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					}
 				}
 
-				if lastLineEnding < bufDataEnd-1 {
-					n := copy(t.buf, t.buf[lastLineEnding+1:bufDataEnd])
-					bufDataStart = n
+				if lastLineEnding < bufDataLen-1 {
+					if lastLineEnding > -1 {
+						copy(t.buf, t.buf[lastLineEnding+1:bufDataLen])
+					}
+					bufDataWriteIdx = bufDataLen
 				} else {
-					bufDataStart = 0
+					bufDataWriteIdx = 0
 				}
 			}
 
