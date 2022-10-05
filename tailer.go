@@ -88,7 +88,7 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 						}
 					}
 				} else {
-					// no \n found
+					// no \n found and the buffer is filled.
 					if bufDataLen == len(t.buf) {
 						return ErrLineTooLong
 					}
@@ -98,12 +98,16 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 				lineno += len(lines)
 				if lastLineEnding < bufDataLen-1 {
 					if lastLineEnding > -1 {
+						// a line is found so part of the buffer is consumed
 						n = copy(t.buf, t.buf[lastLineEnding+1:bufDataLen])
-						bufDataWriteIdx = n 
+						bufDataWriteIdx = n
 					} else {
+						// no line found so no buffer is consumed
 						bufDataWriteIdx = bufDataLen
 					}
 				} else {
+					// lastLineEnding == bufDataLen - 1
+					// which means the whole buffer is consumed.
 					bufDataWriteIdx = 0
 				}
 			}
