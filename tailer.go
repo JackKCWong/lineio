@@ -50,29 +50,25 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 		return err
 	}
 
-	offset := t.StartingByte
+	offsetInFile := t.StartingByte
 	lineno := t.StartingLine - 1
+	offsetInBuf := 0
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			_, err := t.fd.Seek(0, io.SeekCurrent)
-			if err != nil {
-				return err
-			}
-
-			n, err := io.ReadFull(t.fd, t.buf)
+			n, err := t.fd.Read(t.buf[offsetInBuf:])
 			if n > 0 {
 				var lines []Line
 				var lastLineEnding int = -1 // track lines within buf
 				var lastLineNo int = 1
-				for i := 0; i < n; i++ {
+				for i := 0; i < offsetInBuf+n; i++ {
 					if t.buf[i] == '\n' {
 						line := Line{
 							No:         lineno + lastLineNo,
-							LineEnding: offset + int64(i),
+							LineEnding: offsetInFile + int64(i),
 							Raw:        t.buf[lastLineEnding+1 : i], // remove \n
 						}
 						lines = append(lines, line)
@@ -81,31 +77,32 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					}
 				}
 
-				offset += int64(lastLineEnding) + 1 // last line start
+				offsetInFile += int64(lastLineEnding) + 1 // last line start
 				lineno += len(lines)
-				_, err := t.fd.Seek(offset, io.SeekStart) // unread last partial line
+				if len(lines) > 0 {
+					if err := consume(lines); err != nil {
+						if errors.Is(err, ErrEndOfTail) {
+							return nil
+						} else {
+							return err
+						}
+					}
+				}
+
+				if lastLineEnding < len(t.buf)-1 {
+					n := copy(t.buf, t.buf[lastLineEnding+1:])
+					offsetInBuf = n
+				} else {
+					offsetInBuf = 0
+				}
+			}
+
+			if err == io.EOF {
+				time.Sleep(backoff)
+				_, err := t.fd.Seek(0, io.SeekCurrent) // reset EOF
 				if err != nil {
 					return err
 				}
-
-				if len(lines) == 0 {
-					time.Sleep(backoff)
-					continue
-				}
-
-				if err := consume(lines); err != nil {
-					if errors.Is(err, ErrEndOfTail) {
-						return nil
-					} else {
-						return err
-					}
-				}
-			} else {
-				if err != io.EOF {
-					return err
-				}
-
-				time.Sleep(backoff)
 			}
 		}
 	}
