@@ -98,9 +98,11 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 				lineno += len(lines)
 				if lastLineEnding < bufDataLen-1 {
 					if lastLineEnding > -1 {
-						copy(t.buf, t.buf[lastLineEnding+1:bufDataLen])
+						n = copy(t.buf, t.buf[lastLineEnding+1:bufDataLen])
+						bufDataWriteIdx = n 
+					} else {
+						bufDataWriteIdx = bufDataLen
 					}
-					bufDataWriteIdx = bufDataLen
 				} else {
 					bufDataWriteIdx = 0
 				}

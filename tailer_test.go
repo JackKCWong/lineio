@@ -36,7 +36,9 @@ func TestSmokeTail(t *testing.T) {
 		fd.WriteString("\n")
 		fd.Sync()
 		time.Sleep(100*time.Millisecond)
-		fd.WriteString("bye\n")
+		fd.WriteString("bye\nsu")
+		fd.Sync()
+		fd.WriteString("per looooooooooong line\n")
 		fd.Sync()
 		fd.Close()
 	}()
@@ -48,7 +50,7 @@ func TestSmokeTail(t *testing.T) {
 	defer rd.Close()
 
 	tailer := lineio.NewTailer(rd, buf)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	wg.Wait()
 
@@ -59,14 +61,15 @@ func TestSmokeTail(t *testing.T) {
 			lines = append(lines, batch[i].Copy())
 		}
 
-		if len(lines) >= 3 {
+		if len(lines) >= 4 {
 			return lineio.ErrEndOfTail
 		}
 
 		return nil
 	})
 
-	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err).Should(Equal(lineio.ErrLineTooLong))
 	g.Expect(len(lines)).Should(Equal(3))
 	g.Expect(lines[0].No).Should(Equal(1))
 	g.Expect(lines[0].Raw).Should(BeEquivalentTo("hi"))
