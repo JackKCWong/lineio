@@ -50,26 +50,26 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 		return err
 	}
 
-	offsetInFile := t.StartingByte
+	fileDataStart := t.StartingByte
 	lineno := t.StartingLine - 1
-	dataStart := 0
+	bufDataStart := 0
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			n, err := t.fd.Read(t.buf[dataStart:])
+			n, err := t.fd.Read(t.buf[bufDataStart:])
 			if n > 0 {
-				dataEnd := dataStart + n
+				bufDataEnd := bufDataStart + n
 				var lines []Line
 				var lastLineEnding int = -1 // track lines within buf
 				var lastLineNo int = 1
-				for i := 0; i < dataEnd; i++ {
+				for i := 0; i < bufDataEnd; i++ {
 					if t.buf[i] == '\n' {
 						line := Line{
 							No:         lineno + lastLineNo,
-							LineEnding: offsetInFile + int64(i),
+							LineEnding: fileDataStart + int64(i),
 							Raw:        t.buf[lastLineEnding+1 : i], // remove \n
 						}
 						lines = append(lines, line)
@@ -78,7 +78,7 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					}
 				}
 
-				offsetInFile += int64(lastLineEnding) + 1 // last line start
+				fileDataStart += int64(lastLineEnding) + 1 // last line start
 				lineno += len(lines)
 				if len(lines) > 0 {
 					if err := consume(lines); err != nil {
@@ -90,11 +90,11 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					}
 				}
 
-				if lastLineEnding < dataEnd-1 {
-					n := copy(t.buf, t.buf[lastLineEnding+1:dataEnd])
-					dataStart = n
+				if lastLineEnding < bufDataEnd-1 {
+					n := copy(t.buf, t.buf[lastLineEnding+1:bufDataEnd])
+					bufDataStart = n
 				} else {
-					dataStart = 0
+					bufDataStart = 0
 				}
 			}
 
