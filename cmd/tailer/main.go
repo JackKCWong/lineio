@@ -74,7 +74,7 @@ func main() {
 
 	var lineCount int
 	err = tailer.Tail(ctx, time.Duration(*fBackoff)*time.Millisecond, func(lines []lineio.Line) error {
-		lineCount++
+		lineCount += len(lines)
 		timeout.Reset(tm * time.Second)
 		if *fVerbose {
 			for i := range lines {
@@ -91,5 +91,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %q\n", err)
 	}
 
-	fmt.Printf("%d lines read", lineCount)
+	fmt.Printf("%d lines read\n", lineCount)
 }
