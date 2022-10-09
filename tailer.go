@@ -14,15 +14,6 @@ type Tailer struct {
 	StartingLine int
 }
 
-type Line struct {
-	// No is the number of current line, starting from 1
-	No int
-	// LineEnding is the ending offset of current line in the File, in number of bytes, staring from 0, pointing at current \n
-	LineEnding int64
-	// Raw holds the line content, excluding \n
-	Raw []byte
-}
-
 func (l Line) Copy() Line {
 	raw := make([]byte, len(l.Raw))
 	copy(raw, l.Raw)
@@ -41,9 +32,6 @@ func NewTailer(fd io.ReadSeeker, buf []byte) *Tailer {
 		StartingLine: 1,
 	}
 }
-
-var ErrEndOfTail error = errors.New("end of tail")
-var ErrLineTooLong error = errors.New("a line doesnot fit in the buffer")
 
 func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([]Line) error) error {
 	_, err := t.fd.Seek(t.StartingByte, io.SeekStart)
@@ -70,6 +58,7 @@ func (t *Tailer) Tail(ctx context.Context, backoff time.Duration, consume func([
 					if t.buf[i] == '\n' {
 						line := Line{
 							No:         lineno + lastLineNo,
+							LineStart:  fileDataStart,
 							LineEnding: fileDataStart + int64(i),
 							Raw:        t.buf[lastLineEnding+1 : i], // exclude \n
 						}
