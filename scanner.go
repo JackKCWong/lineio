@@ -43,6 +43,10 @@ func NewScanner(fd *os.File, buf []byte, opts ...ScannerOption) Scanner {
 }
 
 func (s *Scanner) ResumeFromEOF() (bool, error) {
+	if s.err != nil && s.err != io.EOF {
+		return false, s.err
+	}
+
 	n, err := s.fd.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return false, err
