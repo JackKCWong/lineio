@@ -62,6 +62,10 @@ func (s *Scanner) ResumeFromEOF() (bool, error) {
 }
 
 func (s *Scanner) Scan() bool {
+	if s.err != nil {
+		return false
+	}
+
 	if s.dataLen == int64(len(s.buf)) && s.lineStartIdx == s.dataLen {
 		s.dataLen = 0
 		s.lineStartIdx = 0
