@@ -15,8 +15,17 @@ type Scanner struct {
 	lastline     Line
 }
 
-func NewScanner(fd *os.File, buf []byte) Scanner {
-	return Scanner{
+type ScannerOption func(*Scanner)
+
+func WithStartPos(startingByte int64, startingLine int) ScannerOption {
+	return func(s *Scanner) {
+		s.lastline.LineStart = startingByte
+		s.lastline.No = startingLine
+	}
+}
+
+func NewScanner(fd *os.File, buf []byte, opts ...ScannerOption) Scanner {
+	s := Scanner{
 		fd:           fd,
 		buf:          buf,
 		lineStartIdx: 0,
@@ -25,11 +34,12 @@ func NewScanner(fd *os.File, buf []byte) Scanner {
 			LineEnding: -1,
 		},
 	}
-}
 
-func (s *Scanner) SetStart(startingByte int64, startingLine int) {
-	s.lastline.LineStart = startingByte
-	s.lastline.No = startingLine
+	for i := range opts {
+		opts[i](&s)
+	}
+
+	return s
 }
 
 func (s *Scanner) ResumeFromEOF() (int64, error) {
