@@ -42,8 +42,23 @@ func NewScanner(fd *os.File, buf []byte, opts ...ScannerOption) Scanner {
 	return s
 }
 
-func (s *Scanner) ResumeFromEOF() (int64, error) {
-	return s.fd.Seek(0, io.SeekCurrent)
+func (s *Scanner) ResumeFromEOF() (bool, error) {
+	n, err := s.fd.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return false, err
+	}
+
+	fi, err := s.fd.Stat()
+	if err != nil {
+		return false, err
+	}
+
+	if n < fi.Size() {
+		s.err = nil
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (s *Scanner) Scan() bool {

@@ -34,7 +34,8 @@ func TestSmokeScan(t *testing.T) {
 
 	fd.WriteString("\n")
 	fd.Sync()
-	_, err = scanner.ResumeFromEOF()
+	ok, err := scanner.ResumeFromEOF()
+	g.Expect(ok).Should(BeTrue())
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(scanner.Scan()).Should(Equal(true))
 	g.Expect(scanner.Line()).Should(Equal(lineio.Line{
@@ -52,7 +53,8 @@ func TestSmokeScan(t *testing.T) {
 
 	fd.WriteString("\n")
 	fd.Sync()
-	_, err = scanner.ResumeFromEOF()
+	ok, err = scanner.ResumeFromEOF()
+	g.Expect(ok).Should(BeTrue())
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(scanner.Scan()).Should(Equal(true))
 	g.Expect(scanner.Line()).Should(Equal(lineio.Line{
@@ -61,11 +63,12 @@ func TestSmokeScan(t *testing.T) {
 		LineEnding: 8,
 		Raw:        []byte("world"),
 	}))
-	g.Expect(scanner.Err()).Should(Equal(io.EOF))
+	g.Expect(scanner.Err()).ShouldNot(HaveOccurred())
 
 	fd.WriteString("bye\nsu")
 	fd.Sync()
-	_, err = scanner.ResumeFromEOF()
+	ok, err = scanner.ResumeFromEOF()
+	g.Expect(ok).Should(BeTrue())
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(scanner.Scan()).Should(Equal(true))
 	g.Expect(scanner.Line()).Should(Equal(lineio.Line{
@@ -74,11 +77,12 @@ func TestSmokeScan(t *testing.T) {
 		LineEnding: 12,
 		Raw:        []byte("bye"),
 	}))
-	g.Expect(scanner.Err()).Should(Equal(io.EOF))
+	g.Expect(scanner.Err()).ShouldNot(HaveOccurred())
 
 	fd.WriteString("per looooooooooong line\n")
 	fd.Sync()
-	_, err = scanner.ResumeFromEOF()
+	ok, err = scanner.ResumeFromEOF()
+	g.Expect(ok).Should(BeTrue())
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(scanner.Scan()).Should(Equal(false))
 	g.Expect(scanner.Err()).Should(Equal(lineio.ErrLineTooLong))
