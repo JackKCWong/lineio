@@ -8,10 +8,11 @@ import (
 type Scanner struct {
 	fd           *os.File
 	buf          []byte
-	lineStartIdx int64
-	lineEndIdx   int64
-	dataLen      int64
+	lineStartIdx int
+	lineEndIdx   int
+	dataLen      int
 	err          error
+	eof          error
 	lastline     Line
 }
 
@@ -59,6 +60,7 @@ func (s *Scanner) ResumeFromEOF() (bool, error) {
 
 	if n < fi.Size() {
 		s.err = nil
+		s.eof = nil
 		return true, nil
 	}
 
@@ -70,21 +72,26 @@ func (s *Scanner) Scan() bool {
 		return false
 	}
 
-	if s.dataLen == int64(len(s.buf)) && s.lineStartIdx == s.dataLen {
+	if s.dataLen == len(s.buf) && s.lineStartIdx == s.dataLen {
 		s.dataLen = 0
 		s.lineStartIdx = 0
 	}
 
-	n, err := s.fd.Read(s.buf[s.dataLen:])
-	if n > 0 {
-		s.dataLen += int64(n)
-	} else if err != nil {
-		s.err = err
-		return false
-	}
+	if s.dataLen < len(s.buf) && s.eof == nil {
+		n, err := s.fd.Read(s.buf[s.dataLen:])
+		if n > 0 {
+			s.dataLen += n
+		}
 
-	if err != nil {
-		s.err = err
+		if err != nil {
+			if err == io.EOF {
+				s.eof = err
+				// continue to read from buffer
+			} else {
+				s.err = err
+				return false
+			}
+		}
 	}
 
 	for i := s.lineStartIdx; i < s.dataLen; i++ {
@@ -93,7 +100,7 @@ func (s *Scanner) Scan() bool {
 			linelen := s.lineEndIdx - s.lineStartIdx + 1
 			s.lastline.No++
 			s.lastline.LineStart = s.lastline.LineEnding + 1
-			s.lastline.LineEnding += linelen
+			s.lastline.LineEnding += int64(linelen)
 			s.lastline.Raw = s.buf[s.lineStartIdx:s.lineEndIdx]
 			s.lineStartIdx = s.lineEndIdx + 1
 
@@ -101,14 +108,20 @@ func (s *Scanner) Scan() bool {
 		}
 	}
 
-	if s.dataLen == int64(len(s.buf)) && s.lineStartIdx == 0 {
+	if s.dataLen == len(s.buf) && s.lineStartIdx == 0 {
 		// the whole buffer does not contain a newline.
 		s.err = ErrLineTooLong
 		return false
 	}
 
-	n = copy(s.buf, s.buf[s.lineStartIdx:s.dataLen])
-	s.dataLen = int64(n)
+	if s.eof != nil {
+		// both the buffer and file are consumed
+		s.err = io.EOF
+		return false
+	}
+
+	n := copy(s.buf, s.buf[s.lineStartIdx:s.dataLen])
+	s.dataLen = n
 	s.lineStartIdx = 0
 
 	return s.Scan()
