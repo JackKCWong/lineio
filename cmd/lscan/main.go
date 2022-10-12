@@ -12,6 +12,7 @@ import (
 )
 
 type App struct {
+	Verbose bool
 }
 
 func (a *App) Run(ctx context.Context, args []string) error {
@@ -23,12 +24,21 @@ func (a *App) Run(ctx context.Context, args []string) error {
 	buf := make([]byte, 4*1024)
 	scanner := lineio.NewScanner(infile, buf)
 
-	for scanner.Scan() {
-		line := scanner.Line()
-		fmt.Printf("%d:%d-%d\t\t%s\n", line.No, line.LineStart, line.LineEnding, line.Raw)
+	for {
+		select {
+		case <-ctx.Done():
+			return scanner.Err()
+		default:
+			if scanner.Scan() {
+				line := scanner.Line()
+				if a.Verbose {
+					fmt.Printf("%d:%d-%d\t\t%s\n", line.No, line.LineStart, line.LineEnding, line.Raw)
+				}
+			} else {
+				return scanner.Err()
+			}
+		}
 	}
-
-	return scanner.Err() 
 }
 
 func main() {
@@ -43,6 +53,7 @@ func main() {
 		cancel()
 	}()
 
+	flag.BoolVar(&app.Verbose, "v", false, "print to stdout")
 	flag.Parse()
 
 	if err := app.Run(ctx, flag.Args()); err != nil {
